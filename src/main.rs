@@ -136,7 +136,7 @@ hooks = [
 ]
 "#;
 
-fn init(force: bool) -> Result<(), String> {
+fn install(force: bool) -> Result<(), String> {
     let path = find_pyproject()?;
     find_git_hooks_dir()?;
 
@@ -524,9 +524,9 @@ fn run() -> Result<(), String> {
     let args: Vec<String> = env::args().collect();
 
     match args.get(1).map(|s| s.as_str()) {
-        Some("init") => {
-            let force = args.iter().any(|a| a == "--force");
-            init(force)
+        Some("install") => {
+            let force = args.iter().any(|a| a == "--force" || a == "-f");
+            install(force)
         }
         Some("uninstall") => uninstall_hooks(),
         Some("run") => {

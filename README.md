@@ -8,10 +8,10 @@ Run git hooks as shell commands from `pyproject.toml`.
 
 ## Usage
 
-1. Run `init` in your project:
+1. Install:
 
     ```sh
-    uvx prehook init
+    uvx prehook install
     ```
     _Adds `[tool.prehook]` to `pyproject.toml` (if missing) and installs git hooks. Use `--force` to overwrite existing hooks._
 

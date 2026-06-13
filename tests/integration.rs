@@ -296,7 +296,7 @@ hooks = [
 // ── Init / uninstall ────────────────────────────────────────
 
 #[test]
-fn init_creates_hook_file() {
+fn install_creates_hook_file() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
@@ -304,7 +304,7 @@ fn init_creates_hook_file() {
 hooks = ["echo hi"]
 "#,
     );
-    repo.run_cmd(&["init"]);
+    repo.run_cmd(&["install"]);
 
     let hook = repo.path().join(".git/hooks/pre-commit");
     assert!(hook.exists());
@@ -313,7 +313,7 @@ hooks = ["echo hi"]
 }
 
 #[test]
-fn init_is_idempotent() {
+fn install_is_idempotent() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
@@ -321,14 +321,14 @@ fn init_is_idempotent() {
 hooks = ["echo hi"]
 "#,
     );
-    repo.run_cmd(&["init"]);
-    let (_, stdout, _) = repo.run_cmd(&["init"]);
+    repo.run_cmd(&["install"]);
+    let (_, stdout, _) = repo.run_cmd(&["install"]);
     assert!(stdout.contains("already has [tool.prehook]"));
     assert!(stdout.contains("git hooks installed"));
 }
 
 #[test]
-fn init_refuses_existing_foreign_hook() {
+fn install_refuses_existing_foreign_hook() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
@@ -340,14 +340,14 @@ hooks = ["echo hi"]
     fs::create_dir_all(&hooks_dir).unwrap();
     fs::write(hooks_dir.join("pre-commit"), "#!/bin/sh\necho old\n").unwrap();
 
-    let (code, _, stderr) = repo.run_cmd(&["init"]);
+    let (code, _, stderr) = repo.run_cmd(&["install"]);
     assert_ne!(code, 0);
     assert!(stderr.contains("already exists"));
     assert!(stderr.contains("--force"));
 }
 
 #[test]
-fn init_force_backs_up_existing_hook() {
+fn install_force_backs_up_existing_hook() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
@@ -359,14 +359,14 @@ hooks = ["echo hi"]
     fs::create_dir_all(&hooks_dir).unwrap();
     fs::write(hooks_dir.join("pre-commit"), "#!/bin/sh\necho old\n").unwrap();
 
-    let (code, stdout, _) = repo.run_cmd(&["init", "--force"]);
+    let (code, stdout, _) = repo.run_cmd(&["install", "--force"]);
     assert_eq!(code, 0);
     assert!(stdout.contains("backed up"));
     assert!(hooks_dir.join("pre-commit.backup").exists());
 }
 
 #[test]
-fn init_installs_all_stages() {
+fn install_installs_all_stages() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
@@ -374,7 +374,7 @@ fn init_installs_all_stages() {
 hooks = ["echo hi"]
 "#,
     );
-    let (_, stdout, _) = repo.run_cmd(&["init"]);
+    let (_, stdout, _) = repo.run_cmd(&["install"]);
 
     assert!(repo.path().join(".git/hooks/pre-commit").exists());
     assert!(repo.path().join(".git/hooks/pre-push").exists());
@@ -383,10 +383,10 @@ hooks = ["echo hi"]
 }
 
 #[test]
-fn init_adds_config_to_existing_pyproject() {
+fn install_adds_config_to_existing_pyproject() {
     let repo = TempRepo::new();
     repo.write_config("[project]\nname = \"test\"\n");
-    repo.run_cmd(&["init"]);
+    repo.run_cmd(&["install"]);
 
     let content = fs::read_to_string(repo.path().join("pyproject.toml")).unwrap();
     assert!(content.contains("[project]"));
@@ -403,7 +403,7 @@ fn uninstall_removes_hook() {
 hooks = ["echo hi"]
 "#,
     );
-    repo.run_cmd(&["init"]);
+    repo.run_cmd(&["install"]);
     repo.run_cmd(&["uninstall"]);
 
     let hook = repo.path().join(".git/hooks/pre-commit");
@@ -423,7 +423,7 @@ hooks = ["echo hi"]
     fs::create_dir_all(&hooks_dir).unwrap();
     fs::write(hooks_dir.join("pre-commit"), "#!/bin/sh\necho old\n").unwrap();
 
-    repo.run_cmd(&["init"]);
+    repo.run_cmd(&["install"]);
     repo.run_cmd(&["uninstall"]);
 
     let content = fs::read_to_string(hooks_dir.join("pre-commit")).unwrap();
