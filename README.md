@@ -13,7 +13,7 @@ Run git hooks as shell commands from `pyproject.toml`.
     ```sh
     uvx prehook init
     ```
-    _Adds a `[tool.prehook]` section to `pyproject.toml` and installs the git hooks._
+    _Adds `[tool.prehook]` to `pyproject.toml` (if missing) and installs git hooks. Use `--force` to overwrite existing hooks._
 
 2. Edit the hooks in `pyproject.toml`:
 
@@ -43,7 +43,7 @@ uvx prehook uninstall
 
 I've used `pre-commit` for a long time, and it's a great tool. 
 
-But for projects where I just need to run `ruff check` and `ruff format`, setting up a separate config file with repo URLs and rev hases felt like too much.
+But for projects where I just need to run `ruff check` and `ruff format`, setting up a separate config file with repo URLs and rev hashes felt like too much.
 
 So I made this. Hooks live in `pyproject.toml`, and they're just shell commands.
 
@@ -128,7 +128,7 @@ hooks = [
 ]
 ```
 
-`prehook init` detects all stages in your config and installs the right git hooks automatically.
+`prehook init` installs hooks for all common git stages, so adding new stages to your config works without re-running init.
 
 ### Skipping hooks
 
