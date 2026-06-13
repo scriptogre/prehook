@@ -95,7 +95,12 @@ fn load_config() -> Result<Config, String> {
         .map(|entry| {
             let (cmd, name, stages, verbose) = match entry {
                 HookEntry::Simple(cmd) => (cmd, None, None, false),
-                HookEntry::Full { run, name, stages, verbose } => (run, name, stages, verbose),
+                HookEntry::Full {
+                    run,
+                    name,
+                    stages,
+                    verbose,
+                } => (run, name, stages, verbose),
             };
             Hook {
                 name: name.unwrap_or_else(|| derive_name(&cmd)),
@@ -163,8 +168,11 @@ fn install_hook(stage: &str) -> Result<(), String> {
         .map(|p| p.to_string_lossy().into_owned())
         .unwrap_or_else(|_| "precommit".into());
 
-    fs::write(&hook_path, format!("#!/bin/sh\n\"{bin}\" run --stage {stage}\n"))
-        .map_err(|e| e.to_string())?;
+    fs::write(
+        &hook_path,
+        format!("#!/bin/sh\n\"{bin}\" run --stage {stage}\n"),
+    )
+    .map_err(|e| e.to_string())?;
 
     #[cfg(unix)]
     {
@@ -188,9 +196,21 @@ fn uninstall_hooks() -> Result<(), String> {
     for entry in fs::read_dir(&git_hooks_dir).map_err(|e| e.to_string())? {
         let hook_path = entry.map_err(|e| e.to_string())?.path();
 
-        if !hook_path.is_file() { continue; }
-        if matches!(hook_path.extension().and_then(|e| e.to_str()), Some("legacy" | "sample")) { continue; }
-        if !fs::read_to_string(&hook_path).unwrap_or_default().contains("precommit") { continue; }
+        if !hook_path.is_file() {
+            continue;
+        }
+        if matches!(
+            hook_path.extension().and_then(|e| e.to_str()),
+            Some("legacy" | "sample")
+        ) {
+            continue;
+        }
+        if !fs::read_to_string(&hook_path)
+            .unwrap_or_default()
+            .contains("precommit")
+        {
+            continue;
+        }
 
         found = true;
         let stage = hook_path.file_name().unwrap().to_string_lossy();
@@ -204,7 +224,9 @@ fn uninstall_hooks() -> Result<(), String> {
         println!("uninstalled {stage} hook");
     }
 
-    if !found { println!("no hooks managed by precommit"); }
+    if !found {
+        println!("no hooks managed by precommit");
+    }
     Ok(())
 }
 
@@ -217,7 +239,7 @@ fn run_hooks(config: &Config, stage: &str, only: Option<&str>) -> Result<bool, S
     let hooks: Vec<&Hook> = config
         .hooks
         .iter()
-        .filter(|h| only.map_or(true, |name| h.name == name))
+        .filter(|h| only.is_none_or(|name| h.name == name))
         .filter(|h| h.stages.iter().any(|s| s == stage))
         .collect();
 
@@ -252,12 +274,18 @@ fn run_sequential(hooks: &[&Hook], skip: &[&str], fail_fast: bool) -> Result<boo
         let output = concat_output(&out.stdout, &out.stderr);
 
         if out.status.success() {
-            let detail = if hook.verbose { Some(output.as_str()) } else { None };
+            let detail = if hook.verbose {
+                Some(output.as_str())
+            } else {
+                None
+            };
             print_status(&hook.name, "passed", Some(elapsed), detail);
         } else {
             print_status(&hook.name, "failed", Some(elapsed), Some(&output));
             ok = false;
-            if fail_fast { break; }
+            if fail_fast {
+                break;
+            }
         }
     }
 
@@ -275,12 +303,23 @@ fn run_parallel(hooks: &[&Hook], skip: &[&str], fail_fast: bool) -> Result<bool,
             let verbose = hook.verbose;
             let skipped = skip.contains(&hook.name.as_str());
 
-            let handle = thread::spawn(move || -> Result<Option<(bool, String, Duration)>, String> {
-                if skipped { return Ok(None); }
-                let start = Instant::now();
-                let out = Command::new("sh").args(["-c", &cmd]).output().map_err(|e| e.to_string())?;
-                Ok(Some((out.status.success(), concat_output(&out.stdout, &out.stderr), start.elapsed())))
-            });
+            let handle = thread::spawn(
+                move || -> Result<Option<(bool, String, Duration)>, String> {
+                    if skipped {
+                        return Ok(None);
+                    }
+                    let start = Instant::now();
+                    let out = Command::new("sh")
+                        .args(["-c", &cmd])
+                        .output()
+                        .map_err(|e| e.to_string())?;
+                    Ok(Some((
+                        out.status.success(),
+                        concat_output(&out.stdout, &out.stderr),
+                        start.elapsed(),
+                    )))
+                },
+            );
 
             (name, verbose, handle)
         })
@@ -301,7 +340,9 @@ fn run_parallel(hooks: &[&Hook], skip: &[&str], fail_fast: bool) -> Result<bool,
         } else {
             print_status(&name, "failed", Some(elapsed), Some(&output));
             ok = false;
-            if fail_fast { break; }
+            if fail_fast {
+                break;
+            }
         }
     }
     Ok(ok)
@@ -320,10 +361,16 @@ fn concat_output(stdout: &[u8], stderr: &[u8]) -> String {
 
 fn print_status(name: &str, status: &str, elapsed: Option<Duration>, detail: Option<&str>) {
     let dots = ".".repeat(55usize.saturating_sub(name.len() + status.len()).max(1));
-    let time = elapsed.map(|d| format!(" ({:.2}s)", d.as_secs_f64())).unwrap_or_default();
+    let time = elapsed
+        .map(|d| format!(" ({:.2}s)", d.as_secs_f64()))
+        .unwrap_or_default();
 
     if std::io::stdout().is_terminal() && env::var("NO_COLOR").is_err() {
-        let c = match status { "passed" => "32", "failed" => "31", _ => "33" };
+        let c = match status {
+            "passed" => "32",
+            "failed" => "31",
+            _ => "33",
+        };
         println!("{name}\x1b[2m{dots}\x1b[0m\x1b[{c}m{status}\x1b[0m\x1b[2m{time}\x1b[0m");
     } else {
         println!("{name}{dots}{status}{time}");

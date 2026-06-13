@@ -53,10 +53,12 @@ impl TempRepo {
 #[test]
 fn simple_form_single_hook() {
     let repo = TempRepo::new();
-    repo.write_config(r#"
+    repo.write_config(
+        r#"
 [tool.precommit]
 hooks = ["echo hello"]
-"#);
+"#,
+    );
     let (code, stdout, _) = repo.run_cmd(&["run"]);
     assert_eq!(code, 0);
     assert!(stdout.contains("passed"));
@@ -65,10 +67,12 @@ hooks = ["echo hello"]
 #[test]
 fn simple_form_multiple_hooks() {
     let repo = TempRepo::new();
-    repo.write_config(r#"
+    repo.write_config(
+        r#"
 [tool.precommit]
 hooks = ["echo hello", "echo world"]
-"#);
+"#,
+    );
     let (code, stdout, _) = repo.run_cmd(&["run"]);
     assert_eq!(code, 0);
     assert_eq!(stdout.matches("passed").count(), 2);
@@ -77,12 +81,14 @@ hooks = ["echo hello", "echo world"]
 #[test]
 fn full_form_with_name() {
     let repo = TempRepo::new();
-    repo.write_config(r#"
+    repo.write_config(
+        r#"
 [tool.precommit]
 hooks = [
     { name = "greet", run = "echo hi" },
 ]
-"#);
+"#,
+    );
     let (code, stdout, _) = repo.run_cmd(&["run"]);
     assert_eq!(code, 0);
     assert!(stdout.contains("greet"));
@@ -92,12 +98,14 @@ hooks = [
 #[test]
 fn full_form_name_derived_from_command() {
     let repo = TempRepo::new();
-    repo.write_config(r#"
+    repo.write_config(
+        r#"
 [tool.precommit]
 hooks = [
     { run = "echo hi" },
 ]
-"#);
+"#,
+    );
     let (code, stdout, _) = repo.run_cmd(&["run"]);
     assert_eq!(code, 0);
     assert!(stdout.contains("echo"));
@@ -107,13 +115,15 @@ hooks = [
 #[test]
 fn mixed_simple_and_full() {
     let repo = TempRepo::new();
-    repo.write_config(r#"
+    repo.write_config(
+        r#"
 [tool.precommit]
 hooks = [
     "echo hello",
     { name = "greet", run = "echo hi" },
 ]
-"#);
+"#,
+    );
     let (code, stdout, _) = repo.run_cmd(&["run"]);
     assert_eq!(code, 0);
     assert!(stdout.contains("echo"));
@@ -123,10 +133,12 @@ hooks = [
 #[test]
 fn errors_when_no_hooks() {
     let repo = TempRepo::new();
-    repo.write_config(r#"
+    repo.write_config(
+        r#"
 [tool.precommit]
 fail_fast = true
-"#);
+"#,
+    );
     let (code, _, stderr) = repo.run_cmd(&["run"]);
     assert_ne!(code, 0);
     assert!(stderr.contains("hooks"));
@@ -144,10 +156,12 @@ fn errors_when_no_section() {
 #[test]
 fn duplicate_names_get_suffixed() {
     let repo = TempRepo::new();
-    repo.write_config(r#"
+    repo.write_config(
+        r#"
 [tool.precommit]
 hooks = ["echo first", "echo second", "echo third"]
-"#);
+"#,
+    );
     let (code, stdout, _) = repo.run_cmd(&["run"]);
     assert_eq!(code, 0);
     assert!(stdout.contains("echo-1"));
@@ -159,12 +173,14 @@ hooks = ["echo first", "echo second", "echo third"]
 #[test]
 fn skip_env_skips_hooks() {
     let repo = TempRepo::new();
-    repo.write_config(r#"
+    repo.write_config(
+        r#"
 [tool.precommit]
 hooks = [
     { name = "fail", run = "exit 1" },
 ]
-"#);
+"#,
+    );
     let out = Command::new(binary())
         .args(["run"])
         .current_dir(repo.path())
@@ -180,14 +196,16 @@ hooks = [
 #[test]
 fn skip_multiple_hooks() {
     let repo = TempRepo::new();
-    repo.write_config(r#"
+    repo.write_config(
+        r#"
 [tool.precommit]
 hooks = [
     { name = "a", run = "exit 1" },
     { name = "b", run = "exit 1" },
     { name = "c", run = "echo ok" },
 ]
-"#);
+"#,
+    );
     let out = Command::new(binary())
         .args(["run"])
         .current_dir(repo.path())
@@ -204,12 +222,14 @@ hooks = [
 #[test]
 fn verbose_shows_output_on_success() {
     let repo = TempRepo::new();
-    repo.write_config(r#"
+    repo.write_config(
+        r#"
 [tool.precommit]
 hooks = [
     { name = "loud", run = "echo hello world", verbose = true },
 ]
-"#);
+"#,
+    );
     let (code, stdout, _) = repo.run_cmd(&["run"]);
     assert_eq!(code, 0);
     assert!(stdout.contains("passed"));
@@ -219,14 +239,16 @@ hooks = [
 #[test]
 fn fail_fast_stops_after_first_failure() {
     let repo = TempRepo::new();
-    repo.write_config(r#"
+    repo.write_config(
+        r#"
 [tool.precommit]
 fail_fast = true
 hooks = [
     { name = "bad", run = "exit 1" },
     { name = "never", run = "echo should not run" },
 ]
-"#);
+"#,
+    );
     let (code, stdout, _) = repo.run_cmd(&["run"]);
     assert_ne!(code, 0);
     assert!(stdout.contains("bad"));
@@ -236,10 +258,12 @@ hooks = [
 #[test]
 fn failing_hook_returns_nonzero() {
     let repo = TempRepo::new();
-    repo.write_config(r#"
+    repo.write_config(
+        r#"
 [tool.precommit]
 hooks = ["exit 1"]
-"#);
+"#,
+    );
     let (code, stdout, _) = repo.run_cmd(&["run"]);
     assert_ne!(code, 0);
     assert!(stdout.contains("failed"));
@@ -250,10 +274,12 @@ hooks = ["exit 1"]
 #[test]
 fn install_creates_hook_file() {
     let repo = TempRepo::new();
-    repo.write_config(r#"
+    repo.write_config(
+        r#"
 [tool.precommit]
 hooks = ["echo hi"]
-"#);
+"#,
+    );
     repo.run_cmd(&["install"]);
 
     let hook = repo.path().join(".git/hooks/pre-commit");
@@ -265,10 +291,12 @@ hooks = ["echo hi"]
 #[test]
 fn install_is_idempotent() {
     let repo = TempRepo::new();
-    repo.write_config(r#"
+    repo.write_config(
+        r#"
 [tool.precommit]
 hooks = ["echo hi"]
-"#);
+"#,
+    );
     repo.run_cmd(&["install"]);
     let (_, stdout, _) = repo.run_cmd(&["install"]);
     assert!(stdout.contains("already installed"));
@@ -277,10 +305,12 @@ hooks = ["echo hi"]
 #[test]
 fn install_backs_up_existing_hook() {
     let repo = TempRepo::new();
-    repo.write_config(r#"
+    repo.write_config(
+        r#"
 [tool.precommit]
 hooks = ["echo hi"]
-"#);
+"#,
+    );
     let hooks_dir = repo.path().join(".git/hooks");
     fs::create_dir_all(&hooks_dir).unwrap();
     fs::write(hooks_dir.join("pre-commit"), "#!/bin/sh\necho old\n").unwrap();
@@ -293,13 +323,15 @@ hooks = ["echo hi"]
 #[test]
 fn install_detects_stages() {
     let repo = TempRepo::new();
-    repo.write_config(r#"
+    repo.write_config(
+        r#"
 [tool.precommit]
 hooks = [
     { name = "lint", run = "echo lint" },
     { name = "test", run = "echo test", stages = ["pre-push"] },
 ]
-"#);
+"#,
+    );
     repo.run_cmd(&["install"]);
 
     assert!(repo.path().join(".git/hooks/pre-commit").exists());
@@ -309,10 +341,12 @@ hooks = [
 #[test]
 fn uninstall_removes_hook() {
     let repo = TempRepo::new();
-    repo.write_config(r#"
+    repo.write_config(
+        r#"
 [tool.precommit]
 hooks = ["echo hi"]
-"#);
+"#,
+    );
     repo.run_cmd(&["install"]);
     repo.run_cmd(&["uninstall"]);
 
@@ -323,10 +357,12 @@ hooks = ["echo hi"]
 #[test]
 fn uninstall_restores_legacy_hook() {
     let repo = TempRepo::new();
-    repo.write_config(r#"
+    repo.write_config(
+        r#"
 [tool.precommit]
 hooks = ["echo hi"]
-"#);
+"#,
+    );
     let hooks_dir = repo.path().join(".git/hooks");
     fs::create_dir_all(&hooks_dir).unwrap();
     fs::write(hooks_dir.join("pre-commit"), "#!/bin/sh\necho old\n").unwrap();
@@ -355,13 +391,15 @@ fn uninstall_ignores_non_precommit_hook() {
 #[test]
 fn run_single_hook_by_name() {
     let repo = TempRepo::new();
-    repo.write_config(r#"
+    repo.write_config(
+        r#"
 [tool.precommit]
 hooks = [
     { name = "a", run = "echo aaa" },
     { name = "b", run = "echo bbb" },
 ]
-"#);
+"#,
+    );
     let (code, stdout, _) = repo.run_cmd(&["run", "a"]);
     assert_eq!(code, 0);
     assert!(stdout.contains("a"));
@@ -371,12 +409,14 @@ hooks = [
 #[test]
 fn run_unknown_hook_errors() {
     let repo = TempRepo::new();
-    repo.write_config(r#"
+    repo.write_config(
+        r#"
 [tool.precommit]
 hooks = [
     { name = "a", run = "echo hi" },
 ]
-"#);
+"#,
+    );
     let (code, _, stderr) = repo.run_cmd(&["run", "nope"]);
     assert_ne!(code, 0);
     assert!(stderr.contains("unknown hook"));
@@ -385,13 +425,15 @@ hooks = [
 #[test]
 fn stage_filtering() {
     let repo = TempRepo::new();
-    repo.write_config(r#"
+    repo.write_config(
+        r#"
 [tool.precommit]
 hooks = [
     { name = "lint", run = "echo lint" },
     { name = "tests", run = "echo tests", stages = ["pre-push"] },
 ]
-"#);
+"#,
+    );
 
     let (code, stdout, _) = repo.run_cmd(&["run"]);
     assert_eq!(code, 0);
@@ -409,11 +451,13 @@ hooks = [
 #[test]
 fn parallel_runs_all_hooks() {
     let repo = TempRepo::new();
-    repo.write_config(r#"
+    repo.write_config(
+        r#"
 [tool.precommit]
 parallel = true
 hooks = ["echo one", "echo two", "echo three"]
-"#);
+"#,
+    );
     let (code, stdout, _) = repo.run_cmd(&["run"]);
     assert_eq!(code, 0);
     assert_eq!(stdout.matches("passed").count(), 3);
@@ -422,14 +466,16 @@ hooks = ["echo one", "echo two", "echo three"]
 #[test]
 fn parallel_reports_failure() {
     let repo = TempRepo::new();
-    repo.write_config(r#"
+    repo.write_config(
+        r#"
 [tool.precommit]
 parallel = true
 hooks = [
     { name = "good", run = "echo ok" },
     { name = "bad", run = "exit 1" },
 ]
-"#);
+"#,
+    );
     let (code, stdout, _) = repo.run_cmd(&["run"]);
     assert_ne!(code, 0);
     assert!(stdout.contains("good"));

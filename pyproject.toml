@@ -5,11 +5,25 @@ build-backend = "maturin"
 [project]
 name = "precommit"
 version = "0.1.0"
-description = "Run commands before every commit, configured in pyproject.toml"
+description = "Run git hooks as shell commands from pyproject.toml"
 readme = "README.md"
 authors = [{ name = "Christian Tanul", email = "git@christiantanul.com" }]
 requires-python = ">=3.10"
 license = "MIT"
+keywords = ["git", "hooks", "pre-commit", "linter", "formatter"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Quality Assurance",
+]
+
+[project.urls]
+Repository = "https://github.com/scriptogre/precommit"
 
 [tool.maturin]
 bindings = "bin"
+strip = true
