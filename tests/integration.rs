@@ -324,11 +324,11 @@ hooks = ["echo hi"]
     repo.run_cmd(&["init"]);
     let (_, stdout, _) = repo.run_cmd(&["init"]);
     assert!(stdout.contains("already has [tool.prehook]"));
-    assert!(stdout.contains("git hooks already installed"));
+    assert!(stdout.contains("git hooks installed"));
 }
 
 #[test]
-fn init_backs_up_existing_hook() {
+fn init_refuses_existing_foreign_hook() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
@@ -340,9 +340,29 @@ hooks = ["echo hi"]
     fs::create_dir_all(&hooks_dir).unwrap();
     fs::write(hooks_dir.join("pre-commit"), "#!/bin/sh\necho old\n").unwrap();
 
-    let (_, stdout, _) = repo.run_cmd(&["init"]);
+    let (code, _, stderr) = repo.run_cmd(&["init"]);
+    assert_ne!(code, 0);
+    assert!(stderr.contains("already exists"));
+    assert!(stderr.contains("--force"));
+}
+
+#[test]
+fn init_force_backs_up_existing_hook() {
+    let repo = TempRepo::new();
+    repo.write_config(
+        r#"
+[tool.prehook]
+hooks = ["echo hi"]
+"#,
+    );
+    let hooks_dir = repo.path().join(".git/hooks");
+    fs::create_dir_all(&hooks_dir).unwrap();
+    fs::write(hooks_dir.join("pre-commit"), "#!/bin/sh\necho old\n").unwrap();
+
+    let (code, stdout, _) = repo.run_cmd(&["init", "--force"]);
+    assert_eq!(code, 0);
     assert!(stdout.contains("backed up"));
-    assert!(hooks_dir.join("pre-commit.legacy").exists());
+    assert!(hooks_dir.join("pre-commit.backup").exists());
 }
 
 #[test]
@@ -359,7 +379,7 @@ hooks = ["echo hi"]
     assert!(repo.path().join(".git/hooks/pre-commit").exists());
     assert!(repo.path().join(".git/hooks/pre-push").exists());
     assert!(repo.path().join(".git/hooks/commit-msg").exists());
-    assert!(stdout.contains("installed 7 git hooks"));
+    assert!(stdout.contains("git hooks installed"));
 }
 
 #[test]

@@ -136,7 +136,7 @@ hooks = [
 ]
 "#;
 
-fn init() -> Result<(), String> {
+fn init(force: bool) -> Result<(), String> {
     let path = find_pyproject()?;
     find_git_hooks_dir()?;
 
@@ -182,27 +182,15 @@ fn init() -> Result<(), String> {
         "prepare-commit-msg",
     ];
 
-    let mut installed = 0;
     for stage in stages {
-        if install_hook(stage)? {
-            installed += 1;
-        }
+        install_hook(stage, force)?;
     }
 
-    if installed > 0 {
-        print_status(
-            &format!("installed {b}{installed}{r} git hooks"),
-            "passed",
-            None,
-            None,
-        );
-    } else {
-        print_status("git hooks already installed", "passed", None, None);
-    }
+    print_status("git hooks installed", "passed", None, None);
     Ok(())
 }
 
-fn install_hook(stage: &str) -> Result<bool, String> {
+fn install_hook(stage: &str, force: bool) -> Result<bool, String> {
     let git_hooks_dir = find_git_hooks_dir()?;
     fs::create_dir_all(&git_hooks_dir).map_err(|e| e.to_string())?;
     let hook_path = git_hooks_dir.join(stage);
@@ -212,10 +200,15 @@ fn install_hook(stage: &str) -> Result<bool, String> {
         if content.contains("prehook") {
             return Ok(false);
         }
-        let backup = hook_path.with_extension("legacy");
+        if !force {
+            return Err(format!(
+                "{stage} hook already exists (not managed by prehook). Use --force to overwrite"
+            ));
+        }
+        let backup = hook_path.with_extension("backup");
         fs::rename(&hook_path, &backup).map_err(|e| e.to_string())?;
         print_status(
-            &format!("backed up existing {stage} hook"),
+            &format!("backed up existing {stage} hook to {stage}.backup"),
             "passed",
             None,
             None,
@@ -258,7 +251,7 @@ fn uninstall_hooks() -> Result<(), String> {
         }
         if matches!(
             hook_path.extension().and_then(|e| e.to_str()),
-            Some("legacy" | "sample")
+            Some("backup" | "sample")
         ) {
             continue;
         }
@@ -273,7 +266,7 @@ fn uninstall_hooks() -> Result<(), String> {
         let stage = hook_path.file_name().unwrap().to_string_lossy();
         fs::remove_file(&hook_path).map_err(|e| e.to_string())?;
 
-        let backup = hook_path.with_extension("legacy");
+        let backup = hook_path.with_extension("backup");
         if backup.exists() {
             fs::rename(&backup, &hook_path).map_err(|e| e.to_string())?;
             println!("restored previous {stage} hook");
@@ -527,7 +520,10 @@ fn run() -> Result<(), String> {
     let args: Vec<String> = env::args().collect();
 
     match args.get(1).map(|s| s.as_str()) {
-        Some("init") => init(),
+        Some("init") => {
+            let force = args.iter().any(|a| a == "--force");
+            init(force)
+        }
         Some("uninstall") => uninstall_hooks(),
         Some("run") => {
             let rest = &args[2..];
