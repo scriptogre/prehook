@@ -63,10 +63,6 @@ fn find_pyproject() -> Result<PathBuf, String> {
         .ok_or_else(|| "no pyproject.toml found".into())
 }
 
-fn derive_name(cmd: &str) -> String {
-    cmd.split_whitespace().next().unwrap_or("hook").to_string()
-}
-
 fn dedupe_names(hooks: &mut [Hook]) {
     let mut seen = std::collections::HashMap::<String, u32>::new();
     for h in hooks.iter_mut() {
@@ -103,7 +99,7 @@ fn load_config() -> Result<Config, String> {
                 } => (run, name, stages, verbose),
             };
             Hook {
-                name: name.unwrap_or_else(|| derive_name(&cmd)),
+                name: name.unwrap_or_else(|| cmd.clone()),
                 stages: stages.unwrap_or_else(|| vec!["pre-commit".into()]),
                 verbose,
                 cmd,
@@ -133,22 +129,80 @@ fn find_git_hooks_dir() -> Result<PathBuf, String> {
     Ok(PathBuf::from(String::from_utf8_lossy(&out.stdout).trim()).join("hooks"))
 }
 
-fn install_hooks() -> Result<(), String> {
-    let config = load_config()?;
+const CONFIG_TEMPLATE: &str = r#"
+[tool.prehook]
+hooks = [
+    "echo 'hello from prehook'",
+]
+"#;
 
-    let stages: std::collections::BTreeSet<&str> = config
-        .hooks
-        .iter()
-        .flat_map(|h| h.stages.iter().map(|s| s.as_str()))
-        .collect();
+fn init() -> Result<(), String> {
+    let path = find_pyproject()?;
+    find_git_hooks_dir()?;
 
+    let text = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+
+    let color = use_color();
+    let (b, r) = if color {
+        ("\x1b[1m", "\x1b[0m")
+    } else {
+        ("", "")
+    };
+
+    if text.contains("[tool.prehook]") {
+        print_status(
+            &format!("{b}pyproject.toml{r} already has {b}[tool.prehook]{r}"),
+            "passed",
+            None,
+            None,
+        );
+    } else {
+        let mut file = fs::OpenOptions::new()
+            .append(true)
+            .open(&path)
+            .map_err(|e| e.to_string())?;
+        use std::io::Write;
+        file.write_all(CONFIG_TEMPLATE.as_bytes())
+            .map_err(|e| e.to_string())?;
+        print_status(
+            &format!("added {b}[tool.prehook]{r} to {b}pyproject.toml{r}"),
+            "passed",
+            None,
+            None,
+        );
+    }
+
+    let stages = [
+        "pre-commit",
+        "pre-push",
+        "commit-msg",
+        "pre-rebase",
+        "post-merge",
+        "post-checkout",
+        "prepare-commit-msg",
+    ];
+
+    let mut installed = 0;
     for stage in stages {
-        install_hook(stage)?;
+        if install_hook(stage)? {
+            installed += 1;
+        }
+    }
+
+    if installed > 0 {
+        print_status(
+            &format!("installed {b}{installed}{r} git hooks"),
+            "passed",
+            None,
+            None,
+        );
+    } else {
+        print_status("git hooks already installed", "passed", None, None);
     }
     Ok(())
 }
 
-fn install_hook(stage: &str) -> Result<(), String> {
+fn install_hook(stage: &str) -> Result<bool, String> {
     let git_hooks_dir = find_git_hooks_dir()?;
     fs::create_dir_all(&git_hooks_dir).map_err(|e| e.to_string())?;
     let hook_path = git_hooks_dir.join(stage);
@@ -156,12 +210,16 @@ fn install_hook(stage: &str) -> Result<(), String> {
     if hook_path.exists() {
         let content = fs::read_to_string(&hook_path).map_err(|e| e.to_string())?;
         if content.contains("prehook") {
-            println!("already installed at {}", hook_path.display());
-            return Ok(());
+            return Ok(false);
         }
         let backup = hook_path.with_extension("legacy");
         fs::rename(&hook_path, &backup).map_err(|e| e.to_string())?;
-        println!("backed up existing hook to {}", backup.display());
+        print_status(
+            &format!("backed up existing {stage} hook"),
+            "passed",
+            None,
+            None,
+        );
     }
 
     let bin = env::current_exe()
@@ -181,8 +239,7 @@ fn install_hook(stage: &str) -> Result<(), String> {
             .map_err(|e| e.to_string())?;
     }
 
-    println!("installed {stage} hook");
-    Ok(())
+    Ok(true)
 }
 
 fn uninstall_hooks() -> Result<(), String> {
@@ -249,15 +306,51 @@ fn run_hooks(config: &Config, stage: &str, only: Option<&str>) -> Result<bool, S
         }
     }
 
-    if config.parallel && hooks.len() > 1 {
-        run_parallel(&hooks, &skip, config.fail_fast)
+    let total_start = Instant::now();
+
+    let ok = if config.parallel && hooks.len() > 1 {
+        run_parallel(&hooks, &skip, config.fail_fast)?
     } else {
-        run_sequential(&hooks, &skip, config.fail_fast)
+        run_sequential(&hooks, &skip, config.fail_fast)?
+    };
+
+    if hooks.len() > 1 {
+        print_summary(&COUNTS.with(|c| c.take()), total_start.elapsed());
     }
+
+    Ok(ok)
+}
+
+#[derive(Default)]
+struct Counts {
+    passed: u32,
+    failed: u32,
+    skipped: u32,
+}
+
+std::thread_local! {
+    static COUNTS: std::cell::Cell<Counts> = const { std::cell::Cell::new(Counts { passed: 0, failed: 0, skipped: 0 }) };
+}
+
+fn track(status: &str) {
+    COUNTS.with(|c| {
+        let mut counts = c.take();
+        match status {
+            "passed" => counts.passed += 1,
+            "failed" => counts.failed += 1,
+            _ => counts.skipped += 1,
+        }
+        c.set(counts);
+    });
+}
+
+fn use_color() -> bool {
+    std::io::stdout().is_terminal() && env::var("NO_COLOR").is_err()
 }
 
 fn run_sequential(hooks: &[&Hook], skip: &[&str], fail_fast: bool) -> Result<bool, String> {
     let mut ok = true;
+    let color = use_color();
 
     for hook in hooks {
         if skip.contains(&hook.name.as_str()) {
@@ -265,11 +358,21 @@ fn run_sequential(hooks: &[&Hook], skip: &[&str], fail_fast: bool) -> Result<boo
             continue;
         }
 
+        if color {
+            use std::io::Write;
+            print!("\x1b[2m\u{25cb} {}\x1b[0m", hook.name);
+            std::io::stdout().flush().ok();
+        }
+
         let start = Instant::now();
         let out = Command::new("sh")
             .args(["-c", &hook.cmd])
             .output()
             .map_err(|e| e.to_string())?;
+
+        if color {
+            print!("\r\x1b[2K");
+        }
         let elapsed = start.elapsed();
         let output = concat_output(&out.stdout, &out.stderr);
 
@@ -360,20 +463,21 @@ fn concat_output(stdout: &[u8], stderr: &[u8]) -> String {
 // ── Output ──────────────────────────────────────────────────
 
 fn print_status(name: &str, status: &str, elapsed: Option<Duration>, detail: Option<&str>) {
-    let dots = ".".repeat(55usize.saturating_sub(name.len() + status.len()).max(1));
+    let (symbol, color_code) = match status {
+        "passed" => ("\u{2713}", "32"), // ✓
+        "failed" => ("\u{2717}", "31"), // ✗
+        _ => ("\u{21b7}", "33"),        // ↷
+    };
     let time = elapsed
-        .map(|d| format!(" ({:.2}s)", d.as_secs_f64()))
+        .map(|d| format!(" {:.1}s", d.as_secs_f64()))
         .unwrap_or_default();
 
-    if std::io::stdout().is_terminal() && env::var("NO_COLOR").is_err() {
-        let c = match status {
-            "passed" => "32",
-            "failed" => "31",
-            _ => "33",
-        };
-        println!("{name}\x1b[2m{dots}\x1b[0m\x1b[{c}m{status}\x1b[0m\x1b[2m{time}\x1b[0m");
+    track(status);
+
+    if use_color() {
+        println!("\x1b[{color_code}m{symbol}\x1b[0m {name}\x1b[2m{time}\x1b[0m");
     } else {
-        println!("{name}{dots}{status}{time}");
+        println!("{symbol} {name}{time}");
     }
 
     if let Some(text) = detail.filter(|t| !t.is_empty()) {
@@ -383,13 +487,47 @@ fn print_status(name: &str, status: &str, elapsed: Option<Duration>, detail: Opt
     }
 }
 
+fn print_summary(counts: &Counts, elapsed: Duration) {
+    let color = use_color();
+    let mut parts = Vec::new();
+
+    if counts.passed > 0 {
+        if color {
+            parts.push(format!("\x1b[32m{} passed\x1b[0m", counts.passed));
+        } else {
+            parts.push(format!("{} passed", counts.passed));
+        }
+    }
+    if counts.failed > 0 {
+        if color {
+            parts.push(format!("\x1b[31m{} failed\x1b[0m", counts.failed));
+        } else {
+            parts.push(format!("{} failed", counts.failed));
+        }
+    }
+    if counts.skipped > 0 {
+        if color {
+            parts.push(format!("\x1b[33m{} skipped\x1b[0m", counts.skipped));
+        } else {
+            parts.push(format!("{} skipped", counts.skipped));
+        }
+    }
+
+    let time = format!("{:.1}s", elapsed.as_secs_f64());
+    if color {
+        println!("\n{} \x1b[2m({time})\x1b[0m", parts.join(", "));
+    } else {
+        println!("\n{} ({time})", parts.join(", "));
+    }
+}
+
 // ── CLI ─────────────────────────────────────────────────────
 
 fn run() -> Result<(), String> {
     let args: Vec<String> = env::args().collect();
 
     match args.get(1).map(|s| s.as_str()) {
-        Some("install") => install_hooks(),
+        Some("init") => init(),
         Some("uninstall") => uninstall_hooks(),
         Some("run") => {
             let rest = &args[2..];
@@ -418,7 +556,7 @@ fn run() -> Result<(), String> {
         _ => {
             eprintln!("prehook - git hooks from pyproject.toml\n");
             eprintln!("usage:");
-            eprintln!("  prehook install");
+            eprintln!("  prehook init");
             eprintln!("  prehook uninstall");
             eprintln!("  prehook run [<hook>] [--stage <stage>]");
             process::exit(1);
@@ -428,7 +566,11 @@ fn run() -> Result<(), String> {
 
 fn main() {
     if let Err(e) = run() {
-        eprintln!("error: {e}");
+        if std::io::stderr().is_terminal() && env::var("NO_COLOR").is_err() {
+            eprintln!("\x1b[31m\u{2717}\x1b[0m {e}");
+        } else {
+            eprintln!("\u{2717} {e}");
+        }
         process::exit(1);
     }
 }

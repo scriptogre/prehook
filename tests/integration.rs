@@ -61,7 +61,7 @@ hooks = ["echo hello"]
     );
     let (code, stdout, _) = repo.run_cmd(&["run"]);
     assert_eq!(code, 0);
-    assert!(stdout.contains("passed"));
+    assert!(stdout.contains("\u{2713}")); // ✓
 }
 
 #[test]
@@ -75,7 +75,7 @@ hooks = ["echo hello", "echo world"]
     );
     let (code, stdout, _) = repo.run_cmd(&["run"]);
     assert_eq!(code, 0);
-    assert_eq!(stdout.matches("passed").count(), 2);
+    assert_eq!(stdout.matches("\u{2713}").count(), 2);
 }
 
 #[test]
@@ -92,7 +92,7 @@ hooks = [
     let (code, stdout, _) = repo.run_cmd(&["run"]);
     assert_eq!(code, 0);
     assert!(stdout.contains("greet"));
-    assert!(stdout.contains("passed"));
+    assert!(stdout.contains("\u{2713}"));
 }
 
 #[test]
@@ -108,8 +108,8 @@ hooks = [
     );
     let (code, stdout, _) = repo.run_cmd(&["run"]);
     assert_eq!(code, 0);
-    assert!(stdout.contains("echo"));
-    assert!(stdout.contains("passed"));
+    assert!(stdout.contains("echo hi"));
+    assert!(stdout.contains("\u{2713}"));
 }
 
 #[test]
@@ -126,7 +126,7 @@ hooks = [
     );
     let (code, stdout, _) = repo.run_cmd(&["run"]);
     assert_eq!(code, 0);
-    assert!(stdout.contains("echo"));
+    assert!(stdout.contains("echo hello"));
     assert!(stdout.contains("greet"));
 }
 
@@ -154,18 +154,26 @@ fn errors_when_no_section() {
 }
 
 #[test]
+fn errors_when_no_pyproject() {
+    let repo = TempRepo::new();
+    let (code, _, stderr) = repo.run_cmd(&["run"]);
+    assert_ne!(code, 0);
+    assert!(stderr.contains("no pyproject.toml"));
+}
+
+#[test]
 fn duplicate_names_get_suffixed() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
 [tool.prehook]
-hooks = ["echo first", "echo second", "echo third"]
+hooks = ["echo hello", "echo hello", "echo hello"]
 "#,
     );
     let (code, stdout, _) = repo.run_cmd(&["run"]);
     assert_eq!(code, 0);
-    assert!(stdout.contains("echo-1"));
-    assert!(stdout.contains("echo-2"));
+    assert!(stdout.contains("echo hello-1"));
+    assert!(stdout.contains("echo hello-2"));
 }
 
 // ── SKIP + fail_fast ────────────────────────────────────────
@@ -190,7 +198,7 @@ hooks = [
         .unwrap();
     assert_eq!(out.status.code().unwrap(), 0);
     let stdout = String::from_utf8_lossy(&out.stdout);
-    assert!(stdout.contains("skipped"));
+    assert!(stdout.contains("\u{21b7}")); // ↷
 }
 
 #[test]
@@ -215,8 +223,8 @@ hooks = [
         .unwrap();
     assert_eq!(out.status.code().unwrap(), 0);
     let stdout = String::from_utf8_lossy(&out.stdout);
-    assert_eq!(stdout.matches("skipped").count(), 2);
-    assert!(stdout.contains("passed"));
+    assert_eq!(stdout.matches("\u{21b7}").count(), 2);
+    assert!(stdout.contains("\u{2713}"));
 }
 
 #[test]
@@ -232,7 +240,7 @@ hooks = [
     );
     let (code, stdout, _) = repo.run_cmd(&["run"]);
     assert_eq!(code, 0);
-    assert!(stdout.contains("passed"));
+    assert!(stdout.contains("\u{2713}"));
     assert!(stdout.contains("hello world"));
 }
 
@@ -266,13 +274,29 @@ hooks = ["exit 1"]
     );
     let (code, stdout, _) = repo.run_cmd(&["run"]);
     assert_ne!(code, 0);
-    assert!(stdout.contains("failed"));
+    assert!(stdout.contains("\u{2717}")); // ✗
 }
 
-// ── Install / uninstall ─────────────────────────────────────
+#[test]
+fn failed_hook_shows_output() {
+    let repo = TempRepo::new();
+    repo.write_config(
+        r#"
+[tool.prehook]
+hooks = [
+    { name = "broken", run = "echo 'something went wrong' >&2; exit 1" },
+]
+"#,
+    );
+    let (code, stdout, _) = repo.run_cmd(&["run"]);
+    assert_ne!(code, 0);
+    assert!(stdout.contains("something went wrong"));
+}
+
+// ── Init / uninstall ────────────────────────────────────────
 
 #[test]
-fn install_creates_hook_file() {
+fn init_creates_hook_file() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
@@ -280,7 +304,7 @@ fn install_creates_hook_file() {
 hooks = ["echo hi"]
 "#,
     );
-    repo.run_cmd(&["install"]);
+    repo.run_cmd(&["init"]);
 
     let hook = repo.path().join(".git/hooks/pre-commit");
     assert!(hook.exists());
@@ -289,7 +313,7 @@ hooks = ["echo hi"]
 }
 
 #[test]
-fn install_is_idempotent() {
+fn init_is_idempotent() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
@@ -297,13 +321,14 @@ fn install_is_idempotent() {
 hooks = ["echo hi"]
 "#,
     );
-    repo.run_cmd(&["install"]);
-    let (_, stdout, _) = repo.run_cmd(&["install"]);
-    assert!(stdout.contains("already installed"));
+    repo.run_cmd(&["init"]);
+    let (_, stdout, _) = repo.run_cmd(&["init"]);
+    assert!(stdout.contains("already has [tool.prehook]"));
+    assert!(stdout.contains("git hooks already installed"));
 }
 
 #[test]
-fn install_backs_up_existing_hook() {
+fn init_backs_up_existing_hook() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
@@ -315,27 +340,38 @@ hooks = ["echo hi"]
     fs::create_dir_all(&hooks_dir).unwrap();
     fs::write(hooks_dir.join("pre-commit"), "#!/bin/sh\necho old\n").unwrap();
 
-    let (_, stdout, _) = repo.run_cmd(&["install"]);
+    let (_, stdout, _) = repo.run_cmd(&["init"]);
     assert!(stdout.contains("backed up"));
     assert!(hooks_dir.join("pre-commit.legacy").exists());
 }
 
 #[test]
-fn install_detects_stages() {
+fn init_installs_all_stages() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
 [tool.prehook]
-hooks = [
-    { name = "lint", run = "echo lint" },
-    { name = "test", run = "echo test", stages = ["pre-push"] },
-]
+hooks = ["echo hi"]
 "#,
     );
-    repo.run_cmd(&["install"]);
+    let (_, stdout, _) = repo.run_cmd(&["init"]);
 
     assert!(repo.path().join(".git/hooks/pre-commit").exists());
     assert!(repo.path().join(".git/hooks/pre-push").exists());
+    assert!(repo.path().join(".git/hooks/commit-msg").exists());
+    assert!(stdout.contains("installed 7 git hooks"));
+}
+
+#[test]
+fn init_adds_config_to_existing_pyproject() {
+    let repo = TempRepo::new();
+    repo.write_config("[project]\nname = \"test\"\n");
+    repo.run_cmd(&["init"]);
+
+    let content = fs::read_to_string(repo.path().join("pyproject.toml")).unwrap();
+    assert!(content.contains("[project]"));
+    assert!(content.contains("[tool.prehook]"));
+    assert!(repo.path().join(".git/hooks/pre-commit").exists());
 }
 
 #[test]
@@ -347,7 +383,7 @@ fn uninstall_removes_hook() {
 hooks = ["echo hi"]
 "#,
     );
-    repo.run_cmd(&["install"]);
+    repo.run_cmd(&["init"]);
     repo.run_cmd(&["uninstall"]);
 
     let hook = repo.path().join(".git/hooks/pre-commit");
@@ -367,7 +403,7 @@ hooks = ["echo hi"]
     fs::create_dir_all(&hooks_dir).unwrap();
     fs::write(hooks_dir.join("pre-commit"), "#!/bin/sh\necho old\n").unwrap();
 
-    repo.run_cmd(&["install"]);
+    repo.run_cmd(&["init"]);
     repo.run_cmd(&["uninstall"]);
 
     let content = fs::read_to_string(hooks_dir.join("pre-commit")).unwrap();
@@ -460,7 +496,7 @@ hooks = ["echo one", "echo two", "echo three"]
     );
     let (code, stdout, _) = repo.run_cmd(&["run"]);
     assert_eq!(code, 0);
-    assert_eq!(stdout.matches("passed").count(), 3);
+    assert_eq!(stdout.matches("\u{2713}").count(), 3);
 }
 
 #[test]
@@ -480,5 +516,35 @@ hooks = [
     assert_ne!(code, 0);
     assert!(stdout.contains("good"));
     assert!(stdout.contains("bad"));
-    assert!(stdout.contains("failed"));
+    assert!(stdout.contains("\u{2717}"));
+}
+
+// ── Summary ─────────────────────────────────────────────────
+
+#[test]
+fn summary_shown_for_multiple_hooks() {
+    let repo = TempRepo::new();
+    repo.write_config(
+        r#"
+[tool.prehook]
+hooks = ["echo one", "echo two"]
+"#,
+    );
+    let (code, stdout, _) = repo.run_cmd(&["run"]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("2 passed"));
+}
+
+#[test]
+fn no_summary_for_single_hook() {
+    let repo = TempRepo::new();
+    repo.write_config(
+        r#"
+[tool.prehook]
+hooks = ["echo one"]
+"#,
+    );
+    let (code, stdout, _) = repo.run_cmd(&["run"]);
+    assert_eq!(code, 0);
+    assert!(!stdout.contains("passed"));
 }

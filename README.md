@@ -8,7 +8,14 @@ Run git hooks as shell commands from `pyproject.toml`.
 
 ## Usage
 
-1. Add commands to `pyproject.toml`:
+1. Run `init` in your project:
+
+    ```sh
+    uvx prehook init
+    ```
+    _Adds a `[tool.prehook]` section to `pyproject.toml` and installs the git hooks._
+
+2. Edit the hooks in `pyproject.toml`:
 
     ```toml
     [tool.prehook]
@@ -17,13 +24,6 @@ Run git hooks as shell commands from `pyproject.toml`.
         "uvx ruff format",
     ]
     ```
-
-2. Install the git hooks:
-
-    ```sh
-    uvx prehook install
-    ```
-    _This creates a script in your `.git/hooks/`._
 
 3. `git commit -m "unfinished commit"`
 
@@ -128,7 +128,7 @@ hooks = [
 ]
 ```
 
-`prehook install` detects all stages in your config and installs the right git hooks automatically.
+`prehook init` detects all stages in your config and installs the right git hooks automatically.
 
 ### Skipping hooks
 

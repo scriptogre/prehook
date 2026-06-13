@@ -24,6 +24,13 @@ classifiers = [
 [project.urls]
 Repository = "https://github.com/scriptogre/prehook"
 
+[tool.prehook]
+hooks = [
+    { name = "fmt", run = "cargo fmt --check" },
+    { name = "clippy", run = "cargo clippy -- -D warnings" },
+    { name = "test", run = "cargo test" },
+]
+
 [tool.maturin]
 bindings = "bin"
 strip = true
