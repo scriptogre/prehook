@@ -242,7 +242,8 @@ fn uninstall_hooks() -> Result<(), String> {
         return Ok(());
     }
 
-    let mut found = false;
+    let mut removed = 0;
+    let mut restored = 0;
     for entry in fs::read_dir(&git_hooks_dir).map_err(|e| e.to_string())? {
         let hook_path = entry.map_err(|e| e.to_string())?.path();
 
@@ -262,20 +263,23 @@ fn uninstall_hooks() -> Result<(), String> {
             continue;
         }
 
-        found = true;
-        let stage = hook_path.file_name().unwrap().to_string_lossy();
         fs::remove_file(&hook_path).map_err(|e| e.to_string())?;
+        removed += 1;
 
         let backup = hook_path.with_extension("backup");
         if backup.exists() {
             fs::rename(&backup, &hook_path).map_err(|e| e.to_string())?;
-            println!("restored previous {stage} hook");
+            restored += 1;
         }
-        println!("uninstalled {stage} hook");
     }
 
-    if !found {
-        println!("no hooks managed by prehook");
+    if removed > 0 {
+        print_status("git hooks removed", "passed", None, None);
+        if restored > 0 {
+            print_status("previous hooks restored", "passed", None, None);
+        }
+    } else {
+        print_status("no hooks managed by prehook", "skipped", None, None);
     }
     Ok(())
 }
