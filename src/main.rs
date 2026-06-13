@@ -15,7 +15,7 @@ struct PyProject {
 
 #[derive(Deserialize)]
 struct ToolTable {
-    precommit: Option<RawConfig>,
+    prehook: Option<RawConfig>,
 }
 
 #[derive(Deserialize)]
@@ -85,10 +85,10 @@ fn load_config() -> Result<Config, String> {
 
     let raw = doc
         .tool
-        .and_then(|t| t.precommit)
-        .ok_or("no [tool.precommit] in pyproject.toml")?;
+        .and_then(|t| t.prehook)
+        .ok_or("no [tool.prehook] in pyproject.toml")?;
 
-    let entries = raw.hooks.ok_or("[tool.precommit] needs 'hooks'")?;
+    let entries = raw.hooks.ok_or("[tool.prehook] needs 'hooks'")?;
 
     let mut hooks: Vec<Hook> = entries
         .into_iter()
@@ -155,7 +155,7 @@ fn install_hook(stage: &str) -> Result<(), String> {
 
     if hook_path.exists() {
         let content = fs::read_to_string(&hook_path).map_err(|e| e.to_string())?;
-        if content.contains("precommit") {
+        if content.contains("prehook") {
             println!("already installed at {}", hook_path.display());
             return Ok(());
         }
@@ -166,7 +166,7 @@ fn install_hook(stage: &str) -> Result<(), String> {
 
     let bin = env::current_exe()
         .map(|p| p.to_string_lossy().into_owned())
-        .unwrap_or_else(|_| "precommit".into());
+        .unwrap_or_else(|_| "prehook".into());
 
     fs::write(
         &hook_path,
@@ -207,7 +207,7 @@ fn uninstall_hooks() -> Result<(), String> {
         }
         if !fs::read_to_string(&hook_path)
             .unwrap_or_default()
-            .contains("precommit")
+            .contains("prehook")
         {
             continue;
         }
@@ -225,7 +225,7 @@ fn uninstall_hooks() -> Result<(), String> {
     }
 
     if !found {
-        println!("no hooks managed by precommit");
+        println!("no hooks managed by prehook");
     }
     Ok(())
 }
@@ -416,11 +416,11 @@ fn run() -> Result<(), String> {
             Ok(())
         }
         _ => {
-            eprintln!("precommit - git hooks from pyproject.toml\n");
+            eprintln!("prehook - git hooks from pyproject.toml\n");
             eprintln!("usage:");
-            eprintln!("  precommit install");
-            eprintln!("  precommit uninstall");
-            eprintln!("  precommit run [<hook>] [--stage <stage>]");
+            eprintln!("  prehook install");
+            eprintln!("  prehook uninstall");
+            eprintln!("  prehook run [<hook>] [--stage <stage>]");
             process::exit(1);
         }
     }

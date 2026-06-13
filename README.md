@@ -1,4 +1,4 @@
-# `precommit`
+# `prehook`
 
 Run git hooks as shell commands from `pyproject.toml`.
 
@@ -7,7 +7,7 @@ Run git hooks as shell commands from `pyproject.toml`.
 1. Add commands to `pyproject.toml`:
 
     ```toml
-    [tool.precommit]
+    [tool.prehook]
     hooks = [
         "uvx ruff check --fix",
         "uvx ruff format",
@@ -17,22 +17,22 @@ Run git hooks as shell commands from `pyproject.toml`.
 2. Install the git hooks:
 
     ```sh
-    uvx precommit install
+    uvx prehook install
     ```
-    _This creates a script in `.git/hooks/` that calls `precommit run`._
+    _This creates a script in your `.git/hooks/`._
 
 3. `git commit -m "unfinished commit"`
 
 To run hooks manually:
 
 ```sh
-uvx precommit run
+uvx prehook run
 ```
 
 To uninstall:
 
 ```sh
-uvx precommit uninstall
+uvx prehook uninstall
 ```
 
 ## Why?
@@ -51,7 +51,7 @@ So I made this. Hooks live in `pyproject.toml`, and they're just shell commands.
 Commands run in order. If any command exits non-zero, the commit is blocked.
 
 ```toml
-[tool.precommit]
+[tool.prehook]
 hooks = [
     "uvx ruff check --fix",
     "uvx ruff format",
@@ -61,7 +61,7 @@ hooks = [
 A single command works too:
 
 ```toml
-[tool.precommit]
+[tool.prehook]
 hooks = ["just lint"]
 ```
 
@@ -70,7 +70,7 @@ hooks = ["just lint"]
 For naming, stages, or per-hook options:
 
 ```toml
-[tool.precommit]
+[tool.prehook]
 hooks = [
     { name = "lint", run = "uvx ruff check --fix" },
     { name = "typecheck", run = "uvx pyright" },
@@ -88,7 +88,7 @@ hooks = [
 ### Global options
 
 ```toml
-[tool.precommit]
+[tool.prehook]
 fail_fast = true
 parallel = true
 hooks = [...]
@@ -104,7 +104,7 @@ hooks = [...]
 When `parallel = true`, all hooks run at the same time. If two commands must run in order (e.g. fix then format), combine them:
 
 ```toml
-[tool.precommit]
+[tool.prehook]
 parallel = true
 hooks = [
     { name = "lint+format", run = "uvx ruff check --fix && uvx ruff format" },
@@ -117,14 +117,14 @@ hooks = [
 Hooks run on `pre-commit` by default. To run on other git hooks (e.g. `pre-push`), set `stages`:
 
 ```toml
-[tool.precommit]
+[tool.prehook]
 hooks = [
     { name = "lint", run = "uvx ruff check" },
     { name = "test", run = "pytest", stages = ["pre-push"] },
 ]
 ```
 
-`precommit install` detects all stages in your config and installs the right git hooks automatically.
+`prehook install` detects all stages in your config and installs the right git hooks automatically.
 
 ### Skipping hooks
 

@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn binary() -> PathBuf {
-    PathBuf::from(env!("CARGO_BIN_EXE_precommit"))
+    PathBuf::from(env!("CARGO_BIN_EXE_prehook"))
 }
 
 struct TempRepo {
@@ -55,7 +55,7 @@ fn simple_form_single_hook() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
-[tool.precommit]
+[tool.prehook]
 hooks = ["echo hello"]
 "#,
     );
@@ -69,7 +69,7 @@ fn simple_form_multiple_hooks() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
-[tool.precommit]
+[tool.prehook]
 hooks = ["echo hello", "echo world"]
 "#,
     );
@@ -83,7 +83,7 @@ fn full_form_with_name() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
-[tool.precommit]
+[tool.prehook]
 hooks = [
     { name = "greet", run = "echo hi" },
 ]
@@ -100,7 +100,7 @@ fn full_form_name_derived_from_command() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
-[tool.precommit]
+[tool.prehook]
 hooks = [
     { run = "echo hi" },
 ]
@@ -117,7 +117,7 @@ fn mixed_simple_and_full() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
-[tool.precommit]
+[tool.prehook]
 hooks = [
     "echo hello",
     { name = "greet", run = "echo hi" },
@@ -135,7 +135,7 @@ fn errors_when_no_hooks() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
-[tool.precommit]
+[tool.prehook]
 fail_fast = true
 "#,
     );
@@ -150,7 +150,7 @@ fn errors_when_no_section() {
     repo.write_config("[project]\nname = \"test\"\n");
     let (code, _, stderr) = repo.run_cmd(&["run"]);
     assert_ne!(code, 0);
-    assert!(stderr.contains("no [tool.precommit]"));
+    assert!(stderr.contains("no [tool.prehook]"));
 }
 
 #[test]
@@ -158,7 +158,7 @@ fn duplicate_names_get_suffixed() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
-[tool.precommit]
+[tool.prehook]
 hooks = ["echo first", "echo second", "echo third"]
 "#,
     );
@@ -175,7 +175,7 @@ fn skip_env_skips_hooks() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
-[tool.precommit]
+[tool.prehook]
 hooks = [
     { name = "fail", run = "exit 1" },
 ]
@@ -198,7 +198,7 @@ fn skip_multiple_hooks() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
-[tool.precommit]
+[tool.prehook]
 hooks = [
     { name = "a", run = "exit 1" },
     { name = "b", run = "exit 1" },
@@ -224,7 +224,7 @@ fn verbose_shows_output_on_success() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
-[tool.precommit]
+[tool.prehook]
 hooks = [
     { name = "loud", run = "echo hello world", verbose = true },
 ]
@@ -241,7 +241,7 @@ fn fail_fast_stops_after_first_failure() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
-[tool.precommit]
+[tool.prehook]
 fail_fast = true
 hooks = [
     { name = "bad", run = "exit 1" },
@@ -260,7 +260,7 @@ fn failing_hook_returns_nonzero() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
-[tool.precommit]
+[tool.prehook]
 hooks = ["exit 1"]
 "#,
     );
@@ -276,7 +276,7 @@ fn install_creates_hook_file() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
-[tool.precommit]
+[tool.prehook]
 hooks = ["echo hi"]
 "#,
     );
@@ -285,7 +285,7 @@ hooks = ["echo hi"]
     let hook = repo.path().join(".git/hooks/pre-commit");
     assert!(hook.exists());
     let content = fs::read_to_string(&hook).unwrap();
-    assert!(content.contains("precommit"));
+    assert!(content.contains("prehook"));
 }
 
 #[test]
@@ -293,7 +293,7 @@ fn install_is_idempotent() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
-[tool.precommit]
+[tool.prehook]
 hooks = ["echo hi"]
 "#,
     );
@@ -307,7 +307,7 @@ fn install_backs_up_existing_hook() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
-[tool.precommit]
+[tool.prehook]
 hooks = ["echo hi"]
 "#,
     );
@@ -325,7 +325,7 @@ fn install_detects_stages() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
-[tool.precommit]
+[tool.prehook]
 hooks = [
     { name = "lint", run = "echo lint" },
     { name = "test", run = "echo test", stages = ["pre-push"] },
@@ -343,7 +343,7 @@ fn uninstall_removes_hook() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
-[tool.precommit]
+[tool.prehook]
 hooks = ["echo hi"]
 "#,
     );
@@ -359,7 +359,7 @@ fn uninstall_restores_legacy_hook() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
-[tool.precommit]
+[tool.prehook]
 hooks = ["echo hi"]
 "#,
     );
@@ -375,14 +375,14 @@ hooks = ["echo hi"]
 }
 
 #[test]
-fn uninstall_ignores_non_precommit_hook() {
+fn uninstall_ignores_non_prehook_hook() {
     let repo = TempRepo::new();
     let hooks_dir = repo.path().join(".git/hooks");
     fs::create_dir_all(&hooks_dir).unwrap();
     fs::write(hooks_dir.join("pre-commit"), "#!/bin/sh\necho custom\n").unwrap();
 
     let (_, stdout, _) = repo.run_cmd(&["uninstall"]);
-    assert!(stdout.contains("no hooks managed by precommit"));
+    assert!(stdout.contains("no hooks managed by prehook"));
     assert!(hooks_dir.join("pre-commit").exists());
 }
 
@@ -393,7 +393,7 @@ fn run_single_hook_by_name() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
-[tool.precommit]
+[tool.prehook]
 hooks = [
     { name = "a", run = "echo aaa" },
     { name = "b", run = "echo bbb" },
@@ -411,7 +411,7 @@ fn run_unknown_hook_errors() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
-[tool.precommit]
+[tool.prehook]
 hooks = [
     { name = "a", run = "echo hi" },
 ]
@@ -427,7 +427,7 @@ fn stage_filtering() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
-[tool.precommit]
+[tool.prehook]
 hooks = [
     { name = "lint", run = "echo lint" },
     { name = "tests", run = "echo tests", stages = ["pre-push"] },
@@ -453,7 +453,7 @@ fn parallel_runs_all_hooks() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
-[tool.precommit]
+[tool.prehook]
 parallel = true
 hooks = ["echo one", "echo two", "echo three"]
 "#,
@@ -468,7 +468,7 @@ fn parallel_reports_failure() {
     let repo = TempRepo::new();
     repo.write_config(
         r#"
-[tool.precommit]
+[tool.prehook]
 parallel = true
 hooks = [
     { name = "good", run = "echo ok" },
