@@ -1,5 +1,9 @@
 # `prehook`
 
+[![CI](https://github.com/scriptogre/prehook/actions/workflows/ci.yml/badge.svg)](https://github.com/scriptogre/prehook/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/prehook)](https://pypi.org/project/prehook/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 Run git hooks as shell commands from `pyproject.toml`.
 
 ## Usage
