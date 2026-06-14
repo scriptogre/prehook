@@ -8,24 +8,28 @@ Run git hooks configured in `pyproject.toml` using `uv`.
 
 ## Usage
 
-1. Install:
+1. Install (one-time):
 
     ```sh
     uvx prehook install
     ```
-    _Adds `[tool.prehook]` to `pyproject.toml` (if missing) and installs git hooks. Use `--force` to overwrite existing hooks._
 
-2. Edit the hooks in `pyproject.toml`:
+   _Use `--force` to overwrite existing git hooks._
+
+2. Update hooks in `pyproject.toml`:
 
     ```toml
     [tool.prehook]
     hooks = [
-        "uvx ruff check --fix",
+        "uvx ruff check",
         "uvx ruff format",
     ]
     ```
 
-3. `git commit -m "unfinished commit"`
+3. Commit:
+    ```sh
+    git commit -m "unfinished commit"
+    ```
 
 To run hooks manually:
 
@@ -39,111 +43,70 @@ To uninstall:
 uvx prehook uninstall
 ```
 
-## Why?
-
-I've used `pre-commit` for a long time, and it's a great tool. 
-
-But for projects where I just need to run `ruff check` and `ruff format`, setting up a separate config file with repo URLs and rev hashes felt like too much.
-
-So I made this. Hooks live in `pyproject.toml`, and they're just shell commands.
-
-
 ## Configuration
 
-### Simple form
-
-Commands run in order. If any command exits non-zero, the commit is blocked.
-
-```toml
-[tool.prehook]
-hooks = [
-    "uvx ruff check --fix",
-    "uvx ruff format",
-]
-```
-
-A single command works too:
-
-```toml
-[tool.prehook]
-hooks = ["just lint"]
-```
-
-### Full form
-
-For naming, stages, or per-hook options:
+Each hook can have a name, target git hook type, and other options:
 
 ```toml
 [tool.prehook]
 hooks = [
     { name = "lint", run = "uvx ruff check --fix" },
-    { name = "typecheck", run = "uvx pyright" },
     { name = "format", run = "uvx ruff format" },
+    { name = "typecheck", run = "uvx pyright" },
+    { name = "test", run = "pytest", on = ["pre-push"] },
 ]
 ```
 
-| Key       | Default              | Description                      |
-|-----------|----------------------|----------------------------------|
-| `run`     | required             | Command to execute.              |
-| `name`    | derived from command | Label for output and `SKIP`.     |
-| `stages`  | `["pre-commit"]`     | Which git hook stages to run in. |
-| `verbose` | `false`              | Show output even on success.     |
+| Key       | Default              | Description                     |
+| --------- | -------------------- | ------------------------------- |
+| `run`     | required             | Command to execute.             |
+| `name`    | derived from command | Label for output and `SKIP`.    |
+| `on`      | `["pre-commit"]`     | Which git [hook types](https://git-scm.com/docs/githooks#_hooks) to run on. |
+| `verbose` | `false`              | Show output even on success.    |
 
-### Global options
+`uvx prehook install` installs hooks for all supported git hook types, so adding new `on` values works without reinstalling.
 
-```toml
-[tool.prehook]
-fail_fast = true
-parallel = true
-hooks = [...]
+### Skipping hooks
+
+```sh
+SKIP=typecheck git commit -m "wip"         # skip by name
+SKIP=lint,typecheck git commit -m "wip"    # skip multiple
+git commit --no-verify -m "wip"            # skip all
 ```
 
-| Key         | Default | Description                 |
-|-------------|---------|-----------------------------|
-| `fail_fast` | `false` | Stop after first failure.   |
-| `parallel`  | `false` | Run all hooks concurrently. |
-
-### Parallel mode
-
-When `parallel = true`, all hooks run at the same time. If two commands must run in order (e.g. fix then format), combine them:
+### Parallel and fail fast
 
 ```toml
 [tool.prehook]
 parallel = true
+fail_fast = true
 hooks = [
     { name = "lint+format", run = "uvx ruff check --fix && uvx ruff format" },
     { name = "typecheck", run = "uvx pyright" },
 ]
 ```
 
-### Stages
+| Key         | Default | Description                 |
+| ----------- | ------- | --------------------------- |
+| `fail_fast` | `false` | Stop after first failure.   |
+| `parallel`  | `false` | Run all hooks concurrently. |
 
-Hooks run on `pre-commit` by default. To run on other git hooks (e.g. `pre-push`), set `stages`:
-
-```toml
-[tool.prehook]
-hooks = [
-    { name = "lint", run = "uvx ruff check" },
-    { name = "test", run = "pytest", stages = ["pre-push"] },
-]
-```
-
-`prehook init` installs hooks for all common git stages, so adding new stages to your config works without re-running init.
-
-### Skipping hooks
-
-Skip all hooks:
+Both can be overridden from the CLI:
 
 ```sh
-git commit --no-verify -m "wip"
+uvx prehook run --parallel --fail-fast
 ```
 
-Skip specific hooks by name:
+## Why?
 
+I used [`pre-commit`](https://pre-commit.com) for a long time, and it's a great tool.
+
+But I prefer less configuration files, and for most projects I just want a quick:
 ```sh
-SKIP=typecheck git commit -m "wip"
-SKIP=lint,typecheck git commit -m "wip"
+uvx ruff check
+uvx ruff format
 ```
+Which are fast enough to always run on all files (rather than just staged ones).
 
 ## Alternatives
 

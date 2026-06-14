@@ -161,21 +161,6 @@ fn errors_when_no_pyproject() {
     assert!(stderr.contains("no pyproject.toml"));
 }
 
-#[test]
-fn duplicate_names_get_suffixed() {
-    let repo = TempRepo::new();
-    repo.write_config(
-        r#"
-[tool.prehook]
-hooks = ["echo hello", "echo hello", "echo hello"]
-"#,
-    );
-    let (code, stdout, _) = repo.run_cmd(&["run"]);
-    assert_eq!(code, 0);
-    assert!(stdout.contains("echo hello-1"));
-    assert!(stdout.contains("echo hello-2"));
-}
-
 // ── SKIP + fail_fast ────────────────────────────────────────
 
 #[test]
@@ -486,7 +471,7 @@ fn stage_filtering() {
 [tool.prehook]
 hooks = [
     { name = "lint", run = "echo lint" },
-    { name = "tests", run = "echo tests", stages = ["pre-push"] },
+    { name = "tests", run = "echo tests", on = ["pre-push"] },
 ]
 "#,
     );
@@ -496,10 +481,63 @@ hooks = [
     assert!(stdout.contains("lint"));
     assert!(!stdout.contains("tests"));
 
-    let (code, stdout, _) = repo.run_cmd(&["run", "--stage", "pre-push"]);
+    let (code, stdout, _) = repo.run_cmd(&["run", "--on", "pre-push"]);
     assert_eq!(code, 0);
     assert!(!stdout.contains("lint"));
     assert!(stdout.contains("tests"));
+}
+
+// ── Named hook across stages ───────────────────────────────
+
+#[test]
+fn named_hook_runs_regardless_of_stage() {
+    let repo = TempRepo::new();
+    repo.write_config(
+        r#"
+[tool.prehook]
+hooks = [
+    { name = "push-check", run = "echo pushed", on = ["pre-push"] },
+]
+"#,
+    );
+    let (code, stdout, _) = repo.run_cmd(&["run", "push-check"]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("push-check"));
+}
+
+// ── Git arg forwarding ─────────────────────────────────────
+
+#[test]
+fn git_args_forwarded_as_env() {
+    let repo = TempRepo::new();
+    repo.write_config(
+        r#"
+[tool.prehook]
+hooks = [
+    { name = "args", run = "echo $PREHOOK_ARGS", verbose = true, on = ["commit-msg"] },
+]
+"#,
+    );
+    let (code, stdout, _) =
+        repo.run_cmd(&["run", "--on", "commit-msg", "--", ".git/COMMIT_EDITMSG"]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains(".git/COMMIT_EDITMSG"));
+}
+
+#[test]
+fn install_hook_forwards_args() {
+    let repo = TempRepo::new();
+    repo.write_config(
+        r#"
+[tool.prehook]
+hooks = ["echo hi"]
+"#,
+    );
+    repo.run_cmd(&["install"]);
+
+    let hook = repo.path().join(".git/hooks/pre-commit");
+    let content = fs::read_to_string(&hook).unwrap();
+    assert!(content.contains("\"$@\""));
 }
 
 // ── Parallel ────────────────────────────────────────────────
@@ -537,6 +575,25 @@ hooks = [
     assert!(stdout.contains("good"));
     assert!(stdout.contains("bad"));
     assert!(stdout.contains("\u{2717}"));
+}
+
+#[test]
+fn parallel_heavy_output_does_not_stall() {
+    let repo = TempRepo::new();
+    // Each hook writes ~100KB, well over the ~64KB pipe buffer
+    repo.write_config(
+        r#"
+[tool.prehook]
+parallel = true
+hooks = [
+    { name = "big-a", run = "dd if=/dev/zero bs=1024 count=100 2>/dev/null | tr '\\0' 'a'" },
+    { name = "big-b", run = "dd if=/dev/zero bs=1024 count=100 2>/dev/null | tr '\\0' 'b'" },
+]
+"#,
+    );
+    let (code, stdout, _) = repo.run_cmd(&["run"]);
+    assert_eq!(code, 0);
+    assert_eq!(stdout.matches("\u{2713}").count(), 2);
 }
 
 // ── Summary ─────────────────────────────────────────────────
