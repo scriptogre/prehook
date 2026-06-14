@@ -4,7 +4,7 @@
 [![PyPI](https://img.shields.io/pypi/v/prehook)](https://pypi.org/project/prehook/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-Run git hooks as shell commands from `pyproject.toml`.
+Run git hooks configured in `pyproject.toml` using `uv`.
 
 ## Usage
 
