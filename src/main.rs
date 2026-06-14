@@ -345,6 +345,10 @@ fn use_color() -> bool {
     std::io::stdout().is_terminal() && env::var("NO_COLOR").is_err()
 }
 
+fn force_color(cmd: &mut Command) {
+    cmd.env("FORCE_COLOR", "1").env("CLICOLOR_FORCE", "1");
+}
+
 fn run_sequential(hooks: &[&Hook], skip: &[&str], fail_fast: bool) -> Result<bool, String> {
     let mut ok = true;
     let color = use_color();
@@ -362,10 +366,12 @@ fn run_sequential(hooks: &[&Hook], skip: &[&str], fail_fast: bool) -> Result<boo
         }
 
         let start = Instant::now();
-        let out = Command::new("sh")
-            .args(["-c", &hook.cmd])
-            .output()
-            .map_err(|e| e.to_string())?;
+        let mut cmd = Command::new("sh");
+        cmd.args(["-c", &hook.cmd]);
+        if color {
+            force_color(&mut cmd);
+        }
+        let out = cmd.output().map_err(|e| e.to_string())?;
 
         if color {
             print!("\r\x1b[2K");
@@ -403,16 +409,19 @@ fn run_parallel(hooks: &[&Hook], skip: &[&str], fail_fast: bool) -> Result<bool,
             let verbose = hook.verbose;
             let skipped = skip.contains(&hook.name.as_str());
 
+            let color = use_color();
             let handle = thread::spawn(
                 move || -> Result<Option<(bool, String, Duration)>, String> {
                     if skipped {
                         return Ok(None);
                     }
                     let start = Instant::now();
-                    let out = Command::new("sh")
-                        .args(["-c", &cmd])
-                        .output()
-                        .map_err(|e| e.to_string())?;
+                    let mut proc = Command::new("sh");
+                    proc.args(["-c", &cmd]);
+                    if color {
+                        force_color(&mut proc);
+                    }
+                    let out = proc.output().map_err(|e| e.to_string())?;
                     Ok(Some((
                         out.status.success(),
                         concat_output(&out.stdout, &out.stderr),
