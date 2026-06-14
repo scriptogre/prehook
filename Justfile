@@ -30,9 +30,9 @@ release version:
         exit 1
     fi
     just check
-    sed -i '' 's/^version = ".*"/version = "{{version}}"/' Cargo.toml
+    sed -i '' 's/^version = ".*"/version = "{{version}}"/' Cargo.toml pyproject.toml
     cargo check --quiet 2>/dev/null
-    git add Cargo.toml Cargo.lock
+    git add Cargo.toml Cargo.lock pyproject.toml
     git commit -m "Release v{{version}}"
     git tag "v{{version}}"
     echo ""
