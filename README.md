@@ -39,6 +39,13 @@ To uninstall:
 uvx prehook uninstall
 ```
 
+Run the hooks on demand (e.g. in CI) without committing:
+
+```sh
+uvx prehook run                 # pre-commit hooks
+uvx prehook run --on pre-push   # a specific stage
+```
+
 ## Configuration
 
 Each hook can have a name, target git hook type, and other options:

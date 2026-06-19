@@ -153,6 +153,19 @@ def uninstall() -> None:
         _skip("no hooks managed by prehook")
 
 
+def run(stage: str, hook_args: list[str]) -> int:
+    """Run the hooks for `stage` now (e.g. in CI), without committing.
+
+    Executes the same self-contained hook.sh, so behaviour matches a real
+    commit exactly. Works whether or not the hooks are installed.
+    """
+    result = subprocess.run(
+        ["sh", "-c", HOOK_SCRIPT, "prehook", *hook_args],
+        env={**os.environ, "PREHOOK_STAGE": stage},
+    )
+    return result.returncode
+
+
 # ── entry point ─────────────────────────────────────────────
 
 
@@ -169,12 +182,22 @@ def main(argv: list[str] | None = None) -> int:
     )
     commands.add_parser("uninstall", help="Remove all prehook-managed git hooks")
 
+    run_cmd = commands.add_parser("run", help="Run hooks now (e.g. in CI)")
+    run_cmd.add_argument(
+        "--on", choices=STAGES, default="pre-commit", help="git stage to run"
+    )
+    run_cmd.add_argument(
+        "args", nargs="*", help="arguments forwarded to hooks as $PREHOOK_ARGS"
+    )
+
     args = parser.parse_args(argv)
     try:
         if args.command == "install":
             install(args.force)
-        else:
+        elif args.command == "uninstall":
             uninstall()
+        else:
+            return run(args.on, args.args)
     except PrehookError as exc:
         _error(str(exc))
         return 1

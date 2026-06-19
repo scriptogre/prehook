@@ -1,9 +1,10 @@
 #!/bin/sh
 # Managed by prehook. Runs [tool.prehook].hooks from pyproject.toml.
 # Self-contained: POSIX sh + awk, no prehook binary needed at commit time.
-# Stage is this hook's filename (pre-commit, pre-push, ...).
+# Stage is this hook's filename (pre-commit, pre-push, ...), or $PREHOOK_STAGE
+# when invoked by `prehook run`.
 
-stage=$(basename "$0")
+stage="${PREHOOK_STAGE:-$(basename "$0")}"
 root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 config="$root/pyproject.toml"
 [ -f "$config" ] || exit 0

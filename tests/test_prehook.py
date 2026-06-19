@@ -377,3 +377,46 @@ def test_uninstall_ignores_non_prehook_hook(repo):
     _, stdout, _ = prehook(repo, "uninstall")
     assert "no hooks managed by prehook" in stdout
     assert (hooks_dir / "pre-commit").exists()
+
+
+# ── prehook run (manual / CI) ───────────────────────────────
+
+
+def test_run_executes_hooks_without_install(repo):
+    write_config(repo, '[tool.prehook]\nhooks = ["echo hello"]\n')
+    code, stdout, _ = prehook(repo, "run")  # note: no install
+    assert code == 0
+    assert "✓" in stdout
+
+
+def test_run_on_stage(repo):
+    write_config(
+        repo,
+        '[tool.prehook]\nhooks = [ { name = "lint", run = "echo lint" }, '
+        '{ name = "tests", run = "echo tests", on = ["pre-push"] } ]\n',
+    )
+    _, out, _ = prehook(repo, "run")
+    assert "lint" in out
+    assert "tests" not in out
+
+    _, out, _ = prehook(repo, "run", "--on", "pre-push")
+    assert "tests" in out
+    assert "lint" not in out
+
+
+def test_run_forwards_args(repo):
+    write_config(
+        repo,
+        '[tool.prehook]\nhooks = [ { name = "args", run = "echo $PREHOOK_ARGS", '
+        'verbose = true, on = ["commit-msg"] } ]\n',
+    )
+    code, out, _ = prehook(repo, "run", "--on", "commit-msg", ".git/COMMIT_EDITMSG")
+    assert code == 0
+    assert ".git/COMMIT_EDITMSG" in out
+
+
+def test_run_returns_nonzero_on_failure(repo):
+    write_config(repo, '[tool.prehook]\nhooks = ["exit 1"]\n')
+    code, out, _ = prehook(repo, "run")
+    assert code != 0
+    assert "✗" in out
