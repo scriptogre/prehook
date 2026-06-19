@@ -27,9 +27,23 @@ def write_config(repo: Path, toml: str) -> None:
     (repo / "pyproject.toml").write_text(toml)
 
 
+# Strip prehook's own env vars so a parent `prehook run` (the CI dogfood) can't
+# leak PREHOOK_STAGE/ARGS/SKIP into the hook invocations these tests drive.
+def _env(extra=None):
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k not in ("PREHOOK_STAGE", "PREHOOK_ARGS", "SKIP")
+    }
+    env["NO_COLOR"] = "1"
+    if extra:
+        env.update(extra)
+    return env
+
+
 def prehook(repo: Path, *args: str):
-    """Run the prehook CLI (install / uninstall)."""
-    env = {**os.environ, "NO_COLOR": "1", "PYTHONPATH": SRC}
+    """Run the prehook CLI (install / uninstall / run)."""
+    env = _env({"PYTHONPATH": SRC})
     result = subprocess.run(
         [sys.executable, "-m", "prehook", *args],
         cwd=repo,
@@ -42,9 +56,7 @@ def prehook(repo: Path, *args: str):
 
 def fire(repo: Path, stage: str, env_extra=None, args=()):
     """Execute the installed hook for `stage` the way git would."""
-    env = {**os.environ, "NO_COLOR": "1"}
-    if env_extra:
-        env.update(env_extra)
+    env = _env(env_extra)
     hook = repo / ".git" / "hooks" / stage
     result = subprocess.run(
         ["sh", str(hook), *args], cwd=repo, env=env, capture_output=True, text=True
