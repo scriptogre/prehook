@@ -16,6 +16,8 @@ Run git hooks configured in `pyproject.toml` using `uv`.
 
    _Use `--force` to overwrite existing git hooks._
 
+   Installed hooks are self-contained `sh` (they read `pyproject.toml` directly), so committing never needs `prehook` itself, and editing the hook list needs no reinstall.
+
 2. Update hooks in `pyproject.toml`:
 
     ```toml
@@ -30,12 +32,6 @@ Run git hooks configured in `pyproject.toml` using `uv`.
     ```sh
     git commit -m "unfinished commit"
     ```
-
-To run hooks manually:
-
-```sh
-uvx prehook run
-```
 
 To uninstall:
 
@@ -90,12 +86,6 @@ hooks = [
 | ----------- | ------- | --------------------------- |
 | `fail_fast` | `false` | Stop after first failure.   |
 | `parallel`  | `false` | Run all hooks concurrently. |
-
-Both can be overridden from the CLI:
-
-```sh
-uvx prehook run --parallel --fail-fast
-```
 
 ## Why?
 

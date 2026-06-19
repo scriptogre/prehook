@@ -1,22 +1,22 @@
 build:
-    cargo build --release
+    uv build
 
 run *args:
-    cargo run -- {{args}}
+    uv run python -m prehook {{args}}
 
 check:
-    cargo fmt --check
-    cargo clippy -- -D warnings
-    cargo test
+    uvx ruff check
+    uvx ruff format --check
+    uv run pytest -q
 
 test:
-    cargo test
+    uv run pytest -q
 
 fmt:
-    cargo fmt
+    uvx ruff format
 
 fix:
-    cargo clippy --fix --allow-dirty
+    uvx ruff check --fix
 
 release version:
     #!/usr/bin/env bash
@@ -30,9 +30,8 @@ release version:
         exit 1
     fi
     just check
-    sed -i '' 's/^version = ".*"/version = "{{version}}"/' Cargo.toml pyproject.toml
-    cargo check --quiet 2>/dev/null
-    git add Cargo.toml Cargo.lock pyproject.toml
+    sed -i '' 's/^version = ".*"/version = "{{version}}"/' pyproject.toml
+    git add pyproject.toml
     git commit -m "Release v{{version}}"
     git tag "v{{version}}"
     echo ""

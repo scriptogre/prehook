@@ -1,6 +1,6 @@
 [build-system]
-requires = ["maturin>=1.0,<2.0"]
-build-backend = "maturin"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "prehook"
@@ -10,13 +10,12 @@ readme = "README.md"
 authors = [{ name = "Christian Tanul", email = "git@christiantanul.com" }]
 requires-python = ">=3.10"
 license = "MIT"
+license-files = ["LICENSE"]
 keywords = ["git", "hooks", "pre-commit", "linter", "formatter"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Rust",
     "Programming Language :: Python :: 3",
     "Topic :: Software Development :: Quality Assurance",
 ]
@@ -24,13 +23,18 @@ classifiers = [
 [project.urls]
 Repository = "https://github.com/scriptogre/prehook"
 
+[project.scripts]
+prehook = "prehook.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/prehook"]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
 [tool.prehook]
 hooks = [
-    { name = "fmt", run = "cargo fmt --check" },
-    { name = "clippy", run = "cargo clippy -- -D warnings" },
-    { name = "test", run = "cargo test" },
+    { name = "lint", run = "uvx ruff check" },
+    { name = "format", run = "uvx ruff format --check" },
+    { name = "test", run = "uv run pytest -q" },
 ]
-
-[tool.maturin]
-bindings = "bin"
-strip = true
